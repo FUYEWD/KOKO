@@ -14,7 +14,9 @@ _看懂耗電，就是看懂文明的裂縫_
 
 ## ⚙️ 快速開始
 git clone https://github.com/fuyewd/KOKO.git
+
 cd KOKO
+
 https://fuyewd.github.io/KOKO/
 
 ## 🧩 技術棧（簡明扼要）
