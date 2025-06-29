@@ -15,7 +15,7 @@ _看懂耗電，就是看懂文明的裂縫_
 ## ⚙️ 快速開始
 
 ```bash
-git clone https://github.com/yourname/energy-analyzer.git
+git clone https://fuyewd.github.io/KOKO/
 cd energy-analyzer
 npx serve .        # or python3 -m http.server
 ````
