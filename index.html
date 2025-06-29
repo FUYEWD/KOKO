@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能能源消耗分析器 | 优化稳定版</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+    <style>
+        /* ===================== 修复蓝屏问题的核心样式 ===================== */
+        :root {
+            --primary-color: #667eea;
+            --fallback-bg: #f0f4ff;
+            /* 新增备用背景色 */
+        }
+
+        body {
+            background: var(--fallback-bg);
+            /* 首要修复：设置安全背景 */
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: #333;
+            transition: background 0.5s;
+        }
+
+        /* 只有当JS成功加载时才显示渐变背景 */
+        body.loaded {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 25px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            opacity: 0;
+            /* 初始隐藏 */
+            transition: opacity 0.8s ease;
+        }
+
+        /* ===================== 响应式布局优化 ===================== */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+
+        /* ===================== 输入验证样式 ===================== */
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group.invalid input {
+            border-color: #e53e3e;
+            box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.1);
+        }
+
+        .error-msg {
+            color: #e53e3e;
+            font-size: 0.85rem;
+            margin-top: 5px;
+            display: none;
+        }
+
+        /* ===================== 设备列表样式 ===================== */
+        #appliance-list {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 20px;
+            min-height: 200px;
+            margin-top: 20px;
+        }
+
+        .appliance-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #e2e8f0;
+            transition: transform 0.2s;
+        }
+
+        .appliance-item:hover {
+            transform: translateY(-3px);
+            background: #f1f5f9;
+        }
+
+        /* ===================== 移动端优化 ===================== */
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+                margin: 10px;
+            }
+
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .chart-container {
+                overflow-x: auto;
+                padding-bottom: 15px;
+            }
+        }
+
+        /* ===================== 加载状态指示器 ===================== */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--primary-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ===================== JavaScript禁用提示 ===================== */
+        .js-warning {
+            background: #ff6b6b;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- JavaScript禁用提示 -->
+    <noscript>
+        <style>
+            .js-warning {
+                display: block !important;
+            }
+
+            #loader {
+                display: none !important;
+            }
+        </style>
+    </noscript>
+
+    <div class="js-warning">
+        ⚠️ 请启用JavaScript以正常使用本应用
+    </div>
+
+    <!-- 加载动画 -->
+    <div id="loader">
+        <div class="spinner"></div>
+        <p style="color:white; margin-top:20px;">加载中...</p>
+    </div>
+
+    <!-- 主容器 -->
+    <div class="container">
+        <header>
+            <h1 style="text-align:center; margin-bottom:30px;">智能能源消耗分析器</h1>
+        </header>
+
+        <!-- 数据统计卡片 -->
+        <div class="dashboard">
+            <div class="stat-card">
+                <h3>每日耗电量</h3>
+                <div id="daily-consumption" class="stat-value">0.0 kWh</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width:0%"></div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>预估月电费</h3>
+                <div id="monthly-cost" class="stat-value">¥ 0</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width:0%"></div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>碳足迹</h3>
+                <div id="carbon-footprint" class="stat-value">0.0 kg</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width:0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 设备输入表单 -->
+        <div class="input-section">
+            <h2>添加设备</h2>
+            <div class="input-group">
+                <label for="appliance-name">设备名称</label>
+                <input type="text" id="appliance-name" placeholder="例如：空调">
+            </div>
+
+            <div class="input-group">
+                <label for="appliance-power">功率 (W)</label>
+                <input type="number" id="appliance-power" min="10" value="100">
+                <div class="error-msg">功率需≥10W</div>
+            </div>
+
+            <div class="input-group">
+                <label for="appliance-hours">每日使用时长 (小时)</label>
+                <input type="number" id="appliance-hours" min="0.1" step="0.1" value="4">
+            </div>
+
+            <div class="input-group">
+                <label for="appliance-category">设备类别</label>
+                <select id="appliance-category">
+                    <option value="冷暖空調" data-icon="❄️">冷暖空調</option>
+                    <option value="照明設備" data-icon="💡">照明設備</option>
+                    <option value="家庭娛樂" data-icon="📺">家庭娛樂</option>
+                    <option value="廚房電器" data-icon="🍳">廚房電器</option>
+                    <option value="洗衣清潔" data-icon="🧺">洗衣清潔</option>
+                    <option value="辦公設備" data-icon="💻">辦公設備</option>
+                    <option value="其他" data-icon="🔌">其他</option>
+                </select>
+            </div>
+
+            <button id="add-appliance-btn" class="btn">添加设备</button>
+        </div>
+
+        <!-- 设备列表 -->
+        <div class="device-list">
+            <h2>设备清单</h2>
+            <div id="appliance-list"></div>
+        </div>
+
+        <!-- 图表容器 -->
+        <div class="chart-container">
+            <canvas id="energy-chart" height="300"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // ======================= 核心应用模块 =======================
+        const EnergyAnalyzer = (() => {
+            // 状态管理中心
+            const state = {
+                appliances: [],
+                settings: {
+                    electricityRate: 3.5,
+                    carbonFactor: 0.54,
+                    peakHoursMultiplier: 1.3
+                },
+                chart: null,
+                domRefs: {}
+            };
+
+            // ================= 初始化函数 =================
+            const init = () => {
+                initDOMReferences();
+                bindEvents();
+                loadFromStorage();
+                updateUI();
+                markAsLoaded(); // 关键修复：标记加载完成
+            };
+
+            // ================= DOM引用初始化 =================
+            const initDOMReferences = () => {
+                state.domRefs = {
+                    applianceName: document.getElementById('appliance-name'),
+                    appliancePower: document.getElementById('appliance-power'),
+                    applianceHours: document.getElementById('appliance-hours'),
+                    applianceCategory: document.getElementById('appliance-category'),
+                    applianceList: document.getElementById('appliance-list'),
+                    addApplianceBtn: document.getElementById('add-appliance-btn'),
+                    dailyConsumption: document.getElementById('daily-consumption'),
+                    monthlyCost: document.getElementById('monthly-cost'),
+                    carbonFootprint: document.getElementById('carbon-footprint')
+                };
+            };
+
+            // ================= 事件绑定 =================
+            const bindEvents = () => {
+                state.domRefs.addApplianceBtn.addEventListener('click', addAppliance);
+
+                state.domRefs.appliancePower.addEventListener('input', () => {
+                    validatePowerInput();
+                });
+
+                // 添加键盘快捷键支持
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        addAppliance();
+                    }
+                });
+            };
+
+            // ================= 数据存储 =================
+            const loadFromStorage = () => {
+                const savedData = localStorage.getItem('energyAnalyzer');
+                if (savedData) {
+                    try {
+                        const parsed = JSON.parse(savedData);
+                        state.appliances = parsed.appliances || [];
+                        state.settings = { ...state.settings, ...(parsed.settings || {}) };
+                    } catch (e) {
+                        console.error('存储数据解析失败', e);
+                    }
+                }
+            };
+
+            const saveToStorage = () => {
+                const data = {
+                    appliances: state.appliances,
+                    settings: state.settings,
+                    timestamp: new Date().toISOString()
+                };
+                localStorage.setItem('energyAnalyzer', JSON.stringify(data));
+            };
+
+            // ================= 设备管理 =================
+            const addAppliance = () => {
+                if (!validatePowerInput()) return;
+
+                const appliance = {
+                    id: 'app_' + Date.now(),
+                    name: state.domRefs.applianceName.value || '未命名设备',
+                    power: parseFloat(state.domRefs.appliancePower.value),
+                    hours: parseFloat(state.domRefs.applianceHours.value),
+                    category: state.domRefs.applianceCategory.value
+                };
+
+                state.appliances.push(appliance);
+                updateUI();
+                saveToStorage();
+
+                // 清空表单
+                state.domRefs.applianceName.value = '';
+                state.domRefs.appliancePower.value = '100';
+            };
+
+            const removeAppliance = (id) => {
+                state.appliances = state.appliances.filter(app => app.id !== id);
+                updateUI();
+                saveToStorage();
+            };
+
+            // ================= 输入验证 =================
+            const validatePowerInput = () => {
+                const powerInput = state.domRefs.appliancePower;
+                const errorMsg = powerInput.nextElementSibling;
+                const powerValue = parseFloat(powerInput.value);
+
+                if (isNaN(powerValue) || powerValue < 10) {
+                    powerInput.parentElement.classList.add('invalid');
+                    errorMsg.style.display = 'block';
+                    return false;
+                }
+
+                powerInput.parentElement.classList.remove('invalid');
+                errorMsg.style.display = 'none';
+                return true;
+            };
+
+            // ================= 计算函数 =================
+            const calculateDailyConsumption = () => {
+                return state.appliances.reduce((sum, app) =>
+                    sum + (app.power * app.hours / 1000), 0);
+            };
+
+            const calculateMonthlyCost = () => {
+                const daily = calculateDailyConsumption();
+                return daily * 30 * state.settings.electricityRate;
+            };
+
+            const calculateCarbonFootprint = () => {
+                const daily = calculateDailyConsumption();
+                return daily * 30 * state.settings.carbonFactor;
+            };
+
+            // ================= UI更新 =================
+            const updateUI = () => {
+                updateStats();
+                renderApplianceList();
+                updateChart();
+            };
+
+            const updateStats = () => {
+                const dailyConsumption = calculateDailyConsumption().toFixed(1);
+                const monthlyCost = calculateMonthlyCost().toFixed(0);
+                const carbonFootprint = calculateCarbonFootprint().toFixed(1);
+
+                state.domRefs.dailyConsumption.textContent = `${dailyConsumption} kWh`;
+                state.domRefs.monthlyCost.textContent = `¥ ${monthlyCost}`;
+                state.domRefs.carbonFootprint.textContent = `${carbonFootprint} kg`;
+
+                // 更新进度条
+                updateProgressBars(dailyConsumption);
+            };
+
+            const updateProgressBars = (dailyConsumption) => {
+                const progressBars = document.querySelectorAll('.progress-fill');
+                const maxDaily = 30; // 假设最大每日消耗30kWh
+                const percentage = Math.min((dailyConsumption / maxDaily) * 100, 100);
+
+                progressBars.forEach(bar => {
+                    bar.style.width = `${percentage}%`;
+                });
+            };
+
+            const renderApplianceList = () => {
+                const listEl = state.domRefs.applianceList;
+
+                if (state.appliances.length === 0) {
+                    listEl.innerHTML = `
+                        <div class="empty-state">
+                            <p>尚未添加任何设备</p>
+                            <button class="btn" onclick="EnergyAnalyzer.addSampleData()">
+                                加载示例数据
+                            </button>
+                        </div>`;
+                    return;
+                }
+
+                listEl.innerHTML = '';
+
+                state.appliances.forEach(appliance => {
+                    const dailyConsumption = (appliance.power * appliance.hours / 1000).toFixed(2);
+
+                    const item = document.createElement('div');
+                    item.className = 'appliance-item';
+                    item.innerHTML = `
+                        <div class="appliance-info">
+                            <div class="appliance-header">
+                                <span class="appliance-icon">${getCategoryIcon(appliance.category)}</span>
+                                <strong>${appliance.name}</strong>
+                            </div>
+                            <div class="appliance-details">
+                                <div>功率: ${appliance.power}W</div>
+                                <div>每日使用: ${appliance.hours}小时</div>
+                                <div>日耗电: ${dailyConsumption}度</div>
+                            </div>
+                        </div>
+                        <button class="delete-btn" 
+                                aria-label="删除设备"
+                                onclick="EnergyAnalyzer.removeAppliance('${appliance.id}')">
+                            &times;
+                        </button>
+                    `;
+
+                    listEl.appendChild(item);
+                });
+            };
+
+            const getCategoryIcon = (category) => {
+                const icons = {
+                    '冷暖空調': '❄️',
+                    '照明設備': '💡',
+                    '家庭娛樂': '📺',
+                    '廚房電器': '🍳',
+                    '洗衣清潔': '🧺',
+                    '辦公設備': '💻',
+                    '其他': '🔌'
+                };
+                return icons[category] || '⚡';
+            };
+
+            // ================= 图表控制 =================
+            const initChart = () => {
+                const ctx = document.getElementById('energy-chart').getContext('2d');
+                state.chart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: getChartData(),
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    font: {
+                                        size: 14
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            };
+
+            const updateChart = () => {
+                if (!state.chart) {
+                    initChart();
+                    return;
+                }
+
+                state.chart.data = getChartData();
+                state.chart.update();
+            };
+
+            const getChartData = () => {
+                // 按类别分组计算能耗
+                const categories = {};
+                state.appliances.forEach(appliance => {
+                    const consumption = appliance.power * appliance.hours / 1000;
+                    if (!categories[appliance.category]) {
+                        categories[appliance.category] = 0;
+                    }
+                    categories[appliance.category] += consumption;
+                });
+
+                // 转换为图表数据格式
+                const labels = Object.keys(categories);
+                const data = Object.values(categories);
+                const backgroundColors = [
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(255, 206, 86, 0.8)',
+                    'rgba(75, 192, 192, 0.8)',
+                    'rgba(153, 102, 255, 0.8)',
+                    'rgba(255, 159, 64, 0.8)',
+                    'rgba(199, 199, 199, 0.8)'
+                ];
+
+                return {
+                    labels,
+                    datasets: [{
+                        data,
+                        backgroundColor: backgroundColors.slice(0, labels.length),
+                        borderWidth: 1
+                    }]
+                };
+            };
+
+            // ================= 关键修复：标记加载完成 =================
+            const markAsLoaded = () => {
+                document.body.classList.add('loaded');
+                document.querySelector('.container').style.opacity = 1;
+                document.getElementById('loader').style.opacity = 0;
+
+                setTimeout(() => {
+                    document.getElementById('loader').style.display = 'none';
+                }, 500);
+            };
+
+            // ================= 公共API =================
+            return {
+                init,
+                addAppliance,
+                removeAppliance,
+                addSampleData: () => {
+                    state.appliances = [
+                        { id: 'ac1', name: '变频空调', power: 1500, hours: 6, category: '冷暖空調' },
+                        { id: 'led1', name: 'LED吸顶灯', power: 40, hours: 5, category: '照明設備' },
+                        { id: 'tv1', name: '4K电视', power: 120, hours: 3, category: '家庭娛樂' }
+                    ];
+                    updateUI();
+                    saveToStorage();
+                }
+            };
+        })();
+
+        // ======================= 初始化应用 =======================
+        window.addEventListener('DOMContentLoaded', () => {
+            EnergyAnalyzer.init();
+
+            // 添加5秒超时保护
+            setTimeout(() => {
+                if (!document.body.classList.contains('loaded')) {
+                    document.querySelector('.container').innerHTML = `
+                        <div style="text-align:center; padding:50px">
+                            <h2>初始化超时</h2>
+                            <p>请检查网络连接后刷新页面</p>
+                            <button onclick="location.reload()" style="padding:10px 20px; margin-top:20px">
+                                重新加载
+                            </button>
+                        </div>
+                    `;
+                }
+            }, 5000);
+        });
+
+        // 全局访问
+        window.EnergyAnalyzer = EnergyAnalyzer;
+    </script>
+</body>
+
+</html>
