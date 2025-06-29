@@ -14,11 +14,11 @@ _看懂耗電，就是看懂文明的裂縫_
 
 ## ⚙️ 快速開始
 
-```bash
-git clone https://fuyewd.github.io/KOKO/
-cd energy-analyzer
-npx serve .        # or python3 -m http.server
-````
+# 1. Clone 正確的 GitHub 倉庫
+git clone https://github.com/fuyewd/KOKO.git
+cd KOKO
+https://fuyewd.github.io/KOKO/
+
 ## 🧩 技術棧（簡明扼要）
 
 * `Chart.js`：互動圖表
