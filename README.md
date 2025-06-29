@@ -5,7 +5,7 @@ _看懂耗電，就是看懂文明的裂縫_
 [![MIT](https://img.shields.io/badge/📜_MIT-開源自由-3CB371?style=for-the-badge)](LICENSE)
 
 
-## 🧠 核心功能一眼看完
+## 🧠 核心功能
 
 - 📈 即時能耗圖表：幫你揪出家中最兇的電力吸血鬼  
 - 🚨 高耗能預警：冷氣忘了關？我們幫你盯  
