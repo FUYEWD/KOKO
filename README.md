@@ -4,20 +4,17 @@ _看懂耗電，就是看懂文明的裂縫_
 [![體驗 DEMO](https://img.shields.io/badge/🚀_立即體驗-DEMO-1E90FF?style=for-the-badge)](https://yourname.github.io/energy-analyzer)
 [![MIT](https://img.shields.io/badge/📜_MIT-開源自由-3CB371?style=for-the-badge)](LICENSE)
 
+## ⚙️ 快速開始
+https://fuyewd.github.io/KOKO/
+
 
 ## 🧠 核心功能
 
 - 📈 即時能耗圖表：幫你揪出家中最兇的電力吸血鬼  
 - 🚨 高耗能預警：冷氣忘了關？我們幫你盯  
-- 🧠 簡易診斷模型：比你爸更懂省電  
+- 🧠 簡易診斷模型：比你媽更懂省電  
 - 📄 一鍵報告：KPI 交差不再靠嘴說
 
-## ⚙️ 快速開始
-git clone https://github.com/fuyewd/KOKO.git
-
-cd KOKO
-
-https://fuyewd.github.io/KOKO/
 
 ## 🧩 技術棧（簡明扼要）
 
